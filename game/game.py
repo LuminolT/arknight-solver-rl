@@ -2,7 +2,7 @@
 Author: LuminolT luminol.chen@gmail.com
 Date: 2023-07-17 09:20:32
 LastEditors: LuminolT luminol.chen@gmail.com
-LastEditTime: 2023-07-17 10:37:05
+LastEditTime: 2023-07-17 10:56:30
 FilePath: \arknight-solver-rl\game\game.py
 Description: 
 
@@ -12,6 +12,7 @@ from random import sample
 from typing import List
 from collections import namedtuple
 
+NextNode = namedtuple('NextNode', ['node', 'points'])
 Action = namedtuple('Action', ['next_node', 'skill']) # skill is a int indicating the skill node
 Observation = namedtuple('Observation', ['cur_node', 'points', 'done'])
 
@@ -47,7 +48,7 @@ class Game:
         self._randomize_game(_2_point_nodes_candidate, _3_point_nodes_candidate)
         
         # get the end nodes
-        self._end_nodes   = self._get_end_nodes()
+        self._end_nodes = self._get_end_nodes()
         
         # game status
         self._skill_left = 1 # the skill left of the game
@@ -90,8 +91,21 @@ class Game:
 
         Args:
             skill (int): the target node
+            
+        Refs:
+            - You can transform any specified node and two random nodes in the graph
+                into 3 point nodes at any time
         """
+        random_nodes_candidate = list(range(1, len(self._graph)))
+        random_nodes_candidate.remove(skill)
+        random_nodes = sample(random_nodes_candidate, 2)
         
+        affected_nodes = [skill] + random_nodes
+        
+        # transform the affected nodes
+        for out_degree in self._graph:
+            for node in affected_nodes:
+                out_degree[node] = 3 if out_degree[node] else 0        
     
     def _one_way_update(self, node: int) -> None:
         """the one way node update, once walk through these nodes, the pair node path will be blocked
@@ -113,18 +127,29 @@ class Game:
         self._graph[node][prev_node] = 0
                 
     def _get_end_nodes(self) -> List[int]:
-        """get the end nodes
+        """get the end nodes of the graph
+
+        Returns:
+            List[int]: the end nodes of the graph
         """
+        
         end_nodes = []
         for idx in range(len(self._graph)):
             # check if the node has no out-degree
             if not any(self._graph[idx]):
                 end_nodes.append(idx)
-                
-    def get_next_nodes(self, cur_node: int) -> List[int]:
+        return end_nodes
+
+    def get_next_nodes(self, cur_node: int) -> List[NextNode]:
         """get the next nodes of the current node
+
+        Args:
+            cur_node (int): the current node
+
+        Returns:
+            List[NextNode]: the next nodes of the current node
         """
-        return [node for node, value in enumerate(self._graph[cur_node]) if value != 0]
+        return [NextNode(node, value) for node, value in enumerate(self._graph[cur_node]) if value != 0]
 
     def _randomize_game(self, _2_point_nodes_candidate:List[int], _3_point_nodes_candidate:List[int]):
         """randomize the game, update the graph.
@@ -134,10 +159,16 @@ class Game:
         # _2_point_nodes.append(1)
         # _3_point_nodes.append(2)
         
-        for node in self._graph:
+        for out_degree in self._graph:
             for _2_point_node in _2_point_nodes:
-                if node[_2_point_node] == 1:
-                    node[_2_point_node] = 2
+                if out_degree[_2_point_node] == 1:
+                    out_degree[_2_point_node] = 2
             for _3_point_node in _3_point_nodes:
-                if node[_3_point_node] == 1:
-                    node[_3_point_node] = 3
+                if out_degree[_3_point_node] == 1:
+                    out_degree[_3_point_node] = 3
+                    
+    def _print_graph(self):
+        """print the graph
+        """
+        for out_degree in self._graph:
+            print(out_degree)
